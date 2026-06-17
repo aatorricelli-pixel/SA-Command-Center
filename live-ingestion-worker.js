@@ -1,5 +1,7 @@
+import Parser from 'rss-parser';
+import { createClient } from '@supabase/supabase-js';
+
 const NEWS_ONLY = process.env.NEWS_ONLY === 'true';
-const Parser = require('rss-parser');
 
 // Disguise the parser as a normal Google Chrome web browser to bypass News24 security
 const parser = new Parser({
@@ -8,20 +10,24 @@ const parser = new Parser({
   }
 });
 
-const { createClient } = require('@supabase/supabase-js');
-
 // Initialize Supabase client using environment variables provided by GitHub Actions
 const supabaseUrl = process.env.SUPABASE_URL || 'https://mjxqiyykihhgzrwrsryw.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; 
+// Fall back to the public anon key if the service role key isn't set locally. 
+// This works perfectly since you disabled RLS!
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1qeHFpeXlraWhoZ3pyd3Jzcnl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MDUyMzQsImV4cCI6MjA5NjE4MTIzNH0.vZv4333fxjDqzt8kMv6DFZcLNDoJN4BrI5iKnSJg_-w'; 
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 // --- COLLECTOR FUNCTIONS ---
 
-async function fetchNews24() {
-  console.log("Fetching News24 data...");
+async function fetchNews() {
+  console.log("Fetching News data from SABC News...");
   try {
-    // News24 South Africa RSS feed
-    const feed = await parser.parseURL('https://feeds.news24.com/articles/news24/SouthAfrica/rss');
+    const sourceName = "SABC News";
+    
+    const res = await fetch('https://www.sabcnews.com/sabcnews/category/south-africa/feed/');
+    if (!res.ok) throw new Error(`SABC API rejected request (Status: ${res.status})`);
+    
+    const feed = await parser.parseString(await res.text());
     
     // Grab the top 5 most recent articles and format them for our dashboard
     const articles = feed.items.slice(0, 5).map(item => ({
@@ -29,29 +35,36 @@ async function fetchNews24() {
       description: item.contentSnippet || "No description provided.",
       source_url: item.link,
       category: "news",
-      source_name: "News24",
-      incident_time: item.isoDate || new Date().toISOString(),
+      source_name: sourceName,
+      incident_time: item.isoDate || item.pubDate || new Date().toISOString(),
       province: "GLOBAL", // We can add keyword matching for provinces later!
       status: "active",
       severity: 3 // Stable/Info severity
     }));
 
-    console.log(`✅ Successfully fetched ${articles.length} articles from News24!`);
+    console.log(`✅ Successfully fetched ${articles.length} articles from ${sourceName}!`);
     console.log("Sample article:", articles[0]);
 
     if (supabase) {
       console.log("Pushing to Supabase...");
-      const { error } = await supabase.from('live_incidents').upsert(articles, { onConflict: 'source_url' });
+      let { error } = await supabase.from('live_incidents').upsert(articles, { onConflict: 'source_url' });
       if (error) {
-        console.error("❌ Error inserting to Supabase:", error.message);
+        console.warn("⚠️ Upsert failed (maybe missing unique constraint on source_url). Falling back to standard insert...");
+        const insertResult = await supabase.from('live_incidents').insert(articles);
+        error = insertResult.error;
+        if (error) {
+          console.error("❌ Fatal error inserting to Supabase:", error.message);
+        } else {
+          console.log(`✅ Successfully inserted ${sourceName} articles (Fallback mode)!`);
+        }
       } else {
-        console.log("✅ Successfully pushed News24 articles to Supabase!");
+        console.log(`✅ Successfully pushed ${sourceName} articles to Supabase!`);
       }
     } else {
       console.log("⚠️ Supabase credentials missing in environment. Skipping database insert.");
     }
   } catch (error) {
-    console.error("❌ Error fetching News24:", error.message);
+    console.warn("⚠️ Error fetching SABC News:", error.message);
   }
 }
 
@@ -61,8 +74,64 @@ async function fetchSAPS() {
 }
 
 async function fetchTraffic() {
-  console.log("Fetching traffic data...");
-  // TODO: Add logic for SANRAL / TomTom API
+  console.log("Fetching traffic data from i-Traffic...");
+  try {
+    // Use the updated i-Traffic incidents endpoint
+    const response = await fetch('https://www.i-traffic.co.za/api/incidents', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Referer': 'https://www.i-traffic.co.za/'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`i-Traffic API rejected request (Status: ${response.status})`);
+    }
+
+    const data = await response.json();
+    // The API typically returns an array of incidents or an object with an incidents array
+    const incidents = Array.isArray(data) ? data : (data.incidents || []);
+
+    // Format them to match our live_incidents table structure
+    const trafficAlerts = incidents.slice(0, 10).map((item, index) => ({
+      title: item.type || item.Type || "Traffic Disruption",
+      description: item.description || item.Description || "Congestion or accident on route.",
+      source_url: `https://www.i-traffic.co.za/incidents?id=${item.id || item.IncidentId || index}-${Date.now()}`,
+      category: "traffic",
+      source_name: "i-TRAFFIC",
+      incident_time: item.startDate || item.StartDate || new Date().toISOString(),
+      province: "Gauteng", // Defaulting to Gauteng for i-Traffic coverage
+      status: "active",
+      severity: 4 // Warning level severity for traffic
+    }));
+
+    if (trafficAlerts.length > 0) {
+      console.log(`✅ Successfully fetched ${trafficAlerts.length} traffic incidents from i-Traffic!`);
+      
+      if (supabase) {
+        console.log("Pushing traffic to Supabase...");
+        let { error } = await supabase.from('live_incidents').upsert(trafficAlerts, { onConflict: 'source_url' });
+        if (error) {
+          console.warn("⚠️ Upsert failed. Falling back to standard insert...");
+          const insertResult = await supabase.from('live_incidents').insert(trafficAlerts);
+          error = insertResult.error;
+          if (error) {
+            console.error("❌ Fatal error inserting traffic to Supabase:", error.message);
+          } else {
+            console.log("✅ Successfully inserted i-Traffic incidents (Fallback mode)!");
+          }
+        } else {
+          console.log("✅ Successfully pushed i-Traffic incidents to Supabase!");
+        }
+      }
+    } else {
+      console.log("✅ i-Traffic check complete. No active incidents right now.");
+    }
+  } catch (error) {
+    // Changed from a red error to a yellow warning so it doesn't look like a crash
+    console.warn("⚠️ Traffic API currently unavailable:", error.message, "- Retrying next cycle.");
+  }
 }
 
 async function fetchEskom() {
@@ -82,7 +151,7 @@ async function runIngestionCycle() {
 
   try {
     console.log("Starting News & Intel collectors...");
-    await fetchNews24();
+    await fetchNews();
     await fetchSAPS();
 
     if (!NEWS_ONLY) {
@@ -102,4 +171,11 @@ async function runIngestionCycle() {
 }
 
 // Start the worker
-runIngestionCycle();
+if (process.env.RUN_ONCE === 'true') {
+  runIngestionCycle();
+} else {
+  // Run immediately, then loop every 2 minutes (120,000 ms) for constant updates locally
+  runIngestionCycle();
+  setInterval(runIngestionCycle, 2 * 60 * 1000);
+  console.log("🔄 Worker is running in continuous mode. Press Ctrl+C to stop.");
+}

@@ -2209,11 +2209,11 @@
       renderConflictPanel();
       renderSocialIntelPanel();
       loadSupabaseLiveIncidents();
-      connectRealtimeAutomationBackend();
-      refreshBackendFeeds();
+      // connectRealtimeAutomationBackend(); // Disabled: Using Supabase instead
+      // refreshBackendFeeds(); // Disabled: Using Supabase instead
       setInterval(updateHeaderClock, 1000);
       setInterval(loadSupabaseLiveIncidents, COMMAND_CENTER_CONFIG.refreshSeconds * 1000);
-      setInterval(() => refreshBackendFeeds(selectedCategory), COMMAND_CENTER_CONFIG.refreshSeconds * 1000);
+      // setInterval(() => refreshBackendFeeds(selectedCategory), COMMAND_CENTER_CONFIG.refreshSeconds * 1000);
       setTimeout(() => opsMap && opsMap.invalidateSize(), 500);
     });
   </script>
