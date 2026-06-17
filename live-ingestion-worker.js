@@ -161,8 +161,17 @@ async function fetchTraffic() {
     ];
 
     if (supabase) {
-      await supabase.from('live_incidents').upsert(simulatedTraffic, { onConflict: 'source_url' });
-      console.log("✅ Successfully pushed simulated traffic data to the dashboard!");
+      let { error } = await supabase.from('live_incidents').upsert(simulatedTraffic, { onConflict: 'source_url' });
+      if (error) {
+        const insertResult = await supabase.from('live_incidents').insert(simulatedTraffic);
+        if (insertResult.error) {
+          console.error("❌ Fatal error inserting simulated traffic:", insertResult.error.message);
+        } else {
+          console.log("✅ Successfully inserted simulated traffic data (Fallback mode)!");
+        }
+      } else {
+        console.log("✅ Successfully pushed simulated traffic data to the dashboard!");
+      }
     }
   }
 }
