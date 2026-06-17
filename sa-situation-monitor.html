@@ -536,6 +536,14 @@
             <span class="text-slate-400">Visible Reports</span>
             <span id="reportCount" class="text-white">0</span>
           </div>
+        <div class="flex justify-between mt-1 pt-1 border-t border-cyan-400/20">
+          <span class="text-slate-400">DB Status</span>
+          <span id="dbLiveStatus" class="text-amber-300">CONNECTING...</span>
+        </div>
+        <div class="flex justify-between mt-1">
+          <span class="text-slate-400">Last Sync</span>
+          <span id="dbLastSync" class="text-cyan-300">--:--:--</span>
+        </div>
         </div>
 
         <div id="incidentFeed" class="space-y-3 max-h-[350px] overflow-y-auto pr-1 mb-4"></div>
@@ -1289,13 +1297,25 @@
       if (assetLayerLeaflet) assetLayerLeaflet.remove();
       assetLayerLeaflet = L.layerGroup();
       mapAssets.filter(asset => showBases || asset.kind !== "base").forEach(asset => {
-        const marker = L.circleMarker([asset.lat, asset.lon], {
-          radius: asset.kind === "base" ? 7 : 6,
-          color: "#061016",
-          weight: 1,
-          fillColor: assetColors[asset.kind],
-          fillOpacity: 0.95
-        });
+        let marker;
+        if (asset.kind === "base") {
+          marker = L.marker([asset.lat, asset.lon], {
+            icon: L.divIcon({
+              className: "",
+              html: `<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid ${assetColors[asset.kind]};filter:drop-shadow(0 0 5px ${assetColors[asset.kind]});"></div>`,
+              iconSize: [16, 14],
+              iconAnchor: [8, 7]
+            })
+          });
+        } else {
+          marker = L.circleMarker([asset.lat, asset.lon], {
+            radius: 6,
+            color: "#061016",
+            weight: 1,
+            fillColor: assetColors[asset.kind],
+            fillOpacity: 0.95
+          });
+        }
         const popupHtml = asset.kind === "base"
           ? `<div style="min-width:220px">
               <img src="${asset.emblem}" alt="SANDF emblem" style="width:72px;height:72px;object-fit:contain;float:right;margin-left:10px;background:#061016;border:1px solid rgba(33,212,253,.35);padding:4px" />
@@ -1653,18 +1673,20 @@
       const countEl = document.getElementById("dbRecordCount");
       const modeEl = document.getElementById("displayModeStatus");
 
-      if (!statusEl || !syncEl || !countEl || !modeEl) return;
-
+    if (statusEl) {
       statusEl.textContent = status;
       statusEl.className = `font-black ${status === "LIVE" ? "text-green-300" : status === "OFFLINE" ? "text-red-300" : "text-amber-300"}`;
+    }
+    if (syncEl) {
       syncEl.textContent = message || new Intl.DateTimeFormat("en-ZA", {
         timeZone: "Africa/Johannesburg",
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit"
       }).format(new Date());
-      countEl.textContent = String(count);
-      modeEl.textContent = manualSitrepFeed.some(item => item.isFallback) ? "LIVE + FALLBACK" : "LIVE ONLY";
+    }
+    if (countEl) countEl.textContent = String(count);
+    if (modeEl) modeEl.textContent = manualSitrepFeed.some(item => item.isFallback) ? "LIVE + FALLBACK" : "LIVE ONLY";
     }
 
     function normalizeRealtimeStatus(value) {
@@ -1771,7 +1793,7 @@
       const point = pointFromPostgisLocation(row.location);
       const category = mapDatabaseCategoryToDashboard(row.category);
       return {
-        id: `DB-${row.id}`,
+      id: `DB-${row.id || row.source_url || Math.random().toString(36).slice(2)}`,
         province: row.province || "GLOBAL",
         category,
         status: normalizeRealtimeStatus(row.severity || row.status),
@@ -1809,6 +1831,24 @@
       const rows = data || [];
       if (rows.length) {
         removeFallbackSitreps();
+    } else {
+      console.warn("Supabase returned 0 rows. Table might be empty or RLS is blocking access.");
+      if (!manualSitrepFeed.some(i => i.id === "SYS-RLS-WARN")) {
+        insertRealtimeSitrep({
+          id: "SYS-RLS-WARN",
+          province: "GLOBAL",
+          category: "NEWS",
+          status: "WARNING",
+          grid: "SYS-DB-CHECK",
+          title: "Database Access Blocked / Empty",
+          impact: "Frontend cannot read data",
+          rawAlert: "The worker is pushing data, but this dashboard cannot read it. Go to Supabase -> Table Editor -> live_incidents -> Disable RLS (Row Level Security).",
+          action: "Disable Row Level Security in Supabase to see live news.",
+          lon: 24,
+          lat: -29,
+          receivedAt: new Date().toISOString()
+        });
+      }
       }
 
       rows.reverse().forEach(row => {
