@@ -1137,11 +1137,11 @@
         const data = await response.json();
         const zar = data?.rates?.ZAR;
         if (!zar) throw new Error("ZAR rate unavailable");
-        rateEl.textContent = zar.toFixed(2);
+        if (rateEl) rateEl.textContent = zar.toFixed(2);
         statusEl.textContent = "Live feed online";
         statusEl.className = "text-[10px] text-green-300 uppercase";
       } catch (error) {
-        rateEl.textContent = "Offline";
+        if (rateEl) rateEl.textContent = "Offline";
         statusEl.textContent = "API feed unavailable";
         statusEl.className = "text-[10px] text-red-300 uppercase";
       }
@@ -1199,7 +1199,20 @@
       { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Waterkloof", lat: -25.831, lon: 28.224, info: "SAAF strategic airlift and state aircraft base near Pretoria. Units include air transport and air support elements." },
       { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Makhado", lat: -23.159, lon: 29.696, info: "Northern SAAF fast-jet and combat training base. Units include fighter training and support elements." },
       { kind: "base", branch: "South African Navy", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "Naval Base Simon's Town", lat: -34.193, lon: 18.436, info: "Principal South African Navy base on False Bay. Fleet and support formations operate from here." },
-      { kind: "base", branch: "South African Army", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "Lohatla Combat Training Centre", lat: -28.083, lon: 23.083, info: "Large SA Army combined-arms training area in the Northern Cape." }
+      { kind: "base", branch: "South African Army", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "Lohatla Combat Training Centre", lat: -28.083, lon: 23.083, info: "Large SA Army combined-arms training area in the Northern Cape." },
+      { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Hoedspruit", lat: -24.355, lon: 31.050, info: "Fighter and helicopter base in Limpopo." },
+      { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Langebaanweg", lat: -32.973, lon: 18.159, info: "Central Flying School in the Western Cape." },
+      { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Overberg", lat: -34.555, lon: 20.251, info: "Test flight and development centre." },
+      { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Swartkop", lat: -25.808, lon: 28.165, info: "Oldest SAAF base, houses the SAAF Museum and helicopter squadrons." },
+      { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Ysterplaat", lat: -33.900, lon: 18.497, info: "Cape Town air base for maritime patrol and helicopters." },
+      { kind: "base", branch: "South African Air Force", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "AFB Bloemspruit", lat: -29.093, lon: 26.301, info: "Helicopter squadron sharing runways with Bloemfontein airport." },
+      { kind: "base", branch: "South African Army", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "ASB Bloemfontein (Tempe)", lat: -29.088, lon: 26.177, info: "Major army garrison housing armour, infantry, and airborne forces." },
+      { kind: "base", branch: "South African Army", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "ASB Potchefstroom", lat: -26.745, lon: 27.078, info: "Artillery and tactical intelligence centre." },
+      { kind: "base", branch: "South African Army", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "Infantry School Oudtshoorn", lat: -33.565, lon: 22.189, info: "Premier training facility for SA Army Infantry." },
+      { kind: "base", branch: "South African Army", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "Thaba Tshwane (Pretoria)", lat: -25.776, lon: 28.153, info: "Historic military heartland, housing multiple army formations and colleges." },
+      { kind: "base", branch: "South African Army", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "Doornkop Military Base", lat: -26.242, lon: 27.876, info: "Major army base south of Johannesburg, housing mechanized infantry." },
+      { kind: "base", branch: "South African Navy", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "Naval Base Durban", lat: -29.873, lon: 31.026, info: "Strategic eastern seaboard naval facility at Salisbury Island." },
+      { kind: "base", branch: "SA Military Health Service", emblem: "https://defenceweb.co.za/wp-content/uploads/resources/fact-files/1200px-SANDF_emblem.svg_.png", name: "1 Military Hospital", lat: -25.778, lon: 28.164, info: "Primary SANDF medical facility in Thaba Tshwane." }
     ];
 
     const assetColors = { port: "#38bdf8", airport: "#c084fc", base: "#ef4444" };
@@ -1492,7 +1505,7 @@
 
     function renderLiveSourcePanel(activeCategory = "ALL") {
       const sourceMatches = liveSources.filter(([type]) => {
-        if (activeCategory === "NATURAL DISASTERS") return type === "Weather";
+        if (activeCategory === "NATURAL DISASTERS" || activeCategory === "WEATHER") return type === "Weather";
         if (activeCategory === "TRAFFIC INCIDENTS") return type === "Traffic";
         if (activeCategory === "WATER/INFRASTRUCTURE") return type === "Water" || type === "Power" || type === "Outages";
         return true;
@@ -1712,6 +1725,7 @@
       return {
         news: "NEWS",
         security: "NEWS", // Routes SAPS press releases here
+        weather: "WEATHER",
         natural_disaster: "NATURAL DISASTERS",
         infrastructure: "WATER/INFRASTRUCTURE",
         traffic: "TRAFFIC INCIDENTS",
