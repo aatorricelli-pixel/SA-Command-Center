@@ -1817,7 +1817,7 @@
 
       const { data, error } = await supabaseClient
         .from("live_incidents")
-        .select("id,title,description,category,severity,status,incident_time,source_name,source_url,location_name,province,location,created_at,updated_at")
+        .select("*")
         .in("status", ["active", "investigating"])
         .order("incident_time", { ascending: false })
         .limit(80);
@@ -1825,6 +1825,22 @@
       if (error) {
         console.warn("Supabase live incident load failed:", error.message);
         setLiveHealth({ status: "OFFLINE", message: error.message.slice(0, 36) });
+        if (!manualSitrepFeed.some(i => i.id === "SYS-DB-ERR")) {
+          insertRealtimeSitrep({
+            id: "SYS-DB-ERR",
+            province: "GLOBAL",
+            category: "NEWS",
+            status: "CRITICAL",
+            grid: "SYS-ERROR",
+            title: "Database Error Detected",
+            impact: "Dashboard cannot read Supabase",
+            rawAlert: `Supabase Error: ${error.message}. This usually means your 'live_incidents' table is missing a column.`,
+            action: "Open Supabase and ensure all necessary columns exist.",
+            lon: 24,
+            lat: -29,
+            receivedAt: new Date().toISOString()
+          });
+        }
         return;
       }
 
