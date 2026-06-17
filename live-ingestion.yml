@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install dependencies
         run: npm install
@@ -33,3 +33,6 @@ jobs:
           ESKOMSEPUSH_API_KEY: ${{ secrets.ESKOMSEPUSH_API_KEY }}
           TRAFFIC_ALERTS_URL: ${{ vars.TRAFFIC_ALERTS_URL }}
           CITY_POWER_STATUS_URL: ${{ vars.CITY_POWER_STATUS_URL }}
+          ACLED_EMAIL: ${{ secrets.ACLED_EMAIL }}
+          ACLED_PASSWORD: ${{ secrets.ACLED_PASSWORD }}
+          ACLED_ACCESS_TOKEN: ${{ secrets.ACLED_ACCESS_TOKEN }}
