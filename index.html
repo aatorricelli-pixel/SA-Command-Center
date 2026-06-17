@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>South Africa Situational Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --bg: #020609;
+      --panel: rgba(3, 10, 14, 0.92);
+      --cyan: #21d4fd;
+      --green: #31ff8a;
+      --orange: #ff9f1c;
+      --red: #ff3131;
+      --muted: #7b9aaa;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #ddfbff;
+      background:
+        linear-gradient(rgba(33, 212, 253, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(33, 212, 253, 0.045) 1px, transparent 1px),
+        radial-gradient(circle at 48% 24%, rgba(33, 212, 253, 0.08), transparent 33%),
+        radial-gradient(circle at 78% 68%, rgba(255, 49, 49, 0.055), transparent 25%),
+        var(--bg);
+      background-size: 34px 34px, 34px 34px, cover, cover, cover;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.035) 0,
+        rgba(255,255,255,0.035) 1px,
+        transparent 2px,
+        transparent 7px
+      );
+      mix-blend-mode: screen;
+    }
+
+    .hud-panel {
+      position: relative;
+      border: 1px solid rgba(33, 212, 253, 0.35);
+      background: var(--panel);
+      border-radius: 3px;
+      box-shadow: 0 0 24px rgba(33, 212, 253, 0.08), inset 0 0 26px rgba(33, 212, 253, 0.045);
+    }
+
+    .hud-panel::before,
+    .hud-panel::after {
+      content: "";
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      pointer-events: none;
+      border-color: var(--cyan);
+    }
+
+    .hud-panel::before {
+      top: -1px;
+      left: -1px;
+      border-top: 2px solid;
+      border-left: 2px solid;
+    }
+
+    .hud-panel::after {
+      right: -1px;
+      bottom: -1px;
+      border-right: 2px solid;
+      border-bottom: 2px solid;
+    }
+
+    .tactical-btn {
+      border: 1px solid rgba(33, 212, 253, 0.42);
+      background: rgba(2, 8, 12, 0.92);
+      color: #bff8ff;
+      clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%);
+      transition: transform .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+
+    .tactical-btn:hover,
+    .tactical-btn.active {
+      color: white;
+      border-color: rgba(49, 255, 138, 0.86);
+      background: rgba(33, 212, 253, 0.14);
+      transform: translateY(-1px);
+      box-shadow: 0 0 18px rgba(33, 212, 253, 0.28);
+    }
+
+    .province {
+      cursor: pointer;
+      fill: rgba(7, 30, 39, 0.94);
+      stroke: rgba(33, 212, 253, 0.8);
+      stroke-width: 1.2;
+      vector-effect: non-scaling-stroke;
+      transition: fill .18s ease, stroke .18s ease, filter .18s ease, opacity .18s ease;
+    }
+
+    .province:hover,
+    .province.selected {
+      fill: rgba(33, 212, 253, 0.28);
+      stroke: var(--green);
+      filter: drop-shadow(0 0 10px rgba(49, 255, 138, 0.95));
+    }
+
+    .province.dimmed {
+      opacity: 0.28;
+    }
+
+    .province-label {
+      fill: #eaffff;
+      font-size: 13px;
+      font-weight: 900;
+      text-anchor: middle;
+      pointer-events: none;
+      paint-order: stroke;
+      stroke: #020609;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    #mapGroup {
+      transform-origin: center;
+      transition: transform .42s cubic-bezier(.2,.78,.2,1);
+    }
+
+    .incident-card {
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.38);
+      border-radius: 3px;
+    }
+
+    .incident-card[data-status="STABLE"] { border-color: rgba(49, 255, 138, 0.48); }
+    .incident-card[data-status="WARNING"] { border-color: rgba(255, 159, 28, 0.58); }
+    .incident-card[data-status="CRITICAL"] { border-color: rgba(255, 49, 49, 0.76); box-shadow: 0 0 16px rgba(255,49,49,.18); }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      display: inline-block;
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .crosshair {
+      position: absolute;
+      width: 58px;
+      height: 58px;
+      border: 1px solid rgba(33, 212, 253, .35);
+      border-radius: 999px;
+      pointer-events: none;
+    }
+
+    .crosshair::before,
+    .crosshair::after {
+      content: "";
+      position: absolute;
+      background: rgba(33, 212, 253, .45);
+    }
+
+    .crosshair::before {
+      width: 1px;
+      height: 78px;
+      left: 50%;
+      top: -10px;
+    }
+
+    .crosshair::after {
+      height: 1px;
+      width: 78px;
+      top: 50%;
+      left: -10px;
+    }
+
+    @keyframes pulseRed {
+      0%, 100% { opacity: .65; }
+      50% { opacity: 1; filter: drop-shadow(0 0 12px rgba(255,49,49,1)); }
+    }
+
+    .critical-pulse {
+      animation: pulseRed 1.2s infinite;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="min-h-screen p-4 lg:p-5">
+    <header class="hud-panel px-4 py-4 mb-4">
+      <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+        <div>
+          <p class="text-cyan-300 text-xs uppercase tracking-[0.32em]">[ RSA // SITUATIONAL COMMAND GRID // LIVE MOCK SITREP ]</p>
+          <h1 class="text-2xl md:text-4xl font-black uppercase tracking-widest text-white">South Africa Situational Command Center</h1>
+        </div>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 text-[11px] uppercase">
+          <div class="border border-cyan-400/40 px-3 py-2">Clock: <span id="clock" class="text-cyan-300">--:--:--</span></div>
+          <div class="border border-green-400/40 px-3 py-2">Stable: <span id="stableCount" class="text-green-300">0</span></div>
+          <div class="border border-orange-400/50 px-3 py-2">Warning: <span id="warningCount" class="text-orange-300">0</span></div>
+          <div class="border border-red-500/60 px-3 py-2">Critical: <span id="criticalCount" class="text-red-300">0</span></div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="hud-panel p-3 mb-4">
+      <div class="flex flex-wrap gap-2">
+        <button class="tactical-btn active px-4 py-2 text-xs uppercase" data-category="ALL">[ ALL CHANNELS ]</button>
+        <button class="tactical-btn px-4 py-2 text-xs uppercase" data-category="NATURAL DISASTERS">[ NATURAL DISASTERS ]</button>
+        <button class="tactical-btn px-4 py-2 text-xs uppercase" data-category="WATER/INFRASTRUCTURE">[ WATER/INFRASTRUCTURE ]</button>
+        <button class="tactical-btn px-4 py-2 text-xs uppercase" data-category="TRAFFIC INCIDENTS">[ TRAFFIC INCIDENTS ]</button>
+        <button class="tactical-btn px-4 py-2 text-xs uppercase" data-category="FINANCIAL">[ FINANCIAL ]</button>
+        <button class="tactical-btn px-4 py-2 text-xs uppercase" data-category="GEOPOLITICAL">[ GEOPOLITICAL ]</button>
+      </div>
+    </nav>
+
+    <main class="grid grid-cols-1 2xl:grid-cols-[1.45fr_0.85fr] gap-4">
+      <section class="hud-panel p-4 min-h-[670px]">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p class="text-cyan-300 text-xs uppercase tracking-[0.26em]">[ Tactical SVG Province Map ]</p>
+            <h2 id="mapTitle" class="text-xl font-black uppercase text-white">Global View: Republic of South Africa</h2>
+          </div>
+          <button id="resetMap" class="tactical-btn px-4 py-2 text-xs uppercase">[ Reset Map / Global View ]</button>
+        </div>
+
+        <div class="relative overflow-hidden border border-cyan-400/20 bg-black/45 rounded-sm">
+          <div class="absolute top-3 left-3 z-10 text-[11px] text-cyan-300 uppercase">LAT -30.5595 // LNG 22.9375</div>
+          <div class="absolute top-3 right-3 z-10 text-[11px] text-green-300 uppercase">MAP SOURCE: INLINE SVG</div>
+          <div class="absolute bottom-3 left-3 z-10 text-[11px] text-cyan-300 uppercase">Selected: <span id="selectedReadout">GLOBAL</span></div>
+          <div class="crosshair left-[49%] top-[43%] opacity-50"></div>
+
+          <svg viewBox="0 0 980 690" class="w-full h-[620px]" role="img" aria-label="Interactive tactical SVG map of South Africa">
+            <defs>
+              <pattern id="microGrid" width="28" height="28" patternUnits="userSpaceOnUse">
+                <path d="M 28 0 L 0 0 0 28" fill="none" stroke="rgba(33,212,253,0.12)" stroke-width="1"/>
+              </pattern>
+              <filter id="glow">
+                <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                <feMerge>
+                  <feMergeNode in="coloredBlur"/>
+                  <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+              </filter>
+            </defs>
+            <rect width="980" height="690" fill="url(#microGrid)" opacity=".55"/>
+            <circle cx="490" cy="345" r="155" fill="none" stroke="rgba(33,212,253,.18)" stroke-width="1"/>
+            <circle cx="490" cy="345" r="270" fill="none" stroke="rgba(33,212,253,.10)" stroke-width="1"/>
+            <line x1="490" y1="70" x2="490" y2="620" stroke="rgba(33,212,253,.12)"/>
+            <line x1="130" y1="345" x2="850" y2="345" stroke="rgba(33,212,253,.12)"/>
+
+            <g id="mapGroup">
+              <path class="province" id="Northern Cape" data-province="Northern Cape" d="M145 202 L262 125 L398 150 L458 238 L424 350 L346 426 L210 405 L118 323 Z"/>
+              <path class="province" id="Western Cape" data-province="Western Cape" d="M210 405 L346 426 L392 512 L348 604 L232 592 L155 520 Z"/>
+              <path class="province" id="Eastern Cape" data-province="Eastern Cape" d="M346 426 L424 350 L560 390 L668 486 L640 568 L486 590 L392 512 Z"/>
+              <path class="province" id="Free State" data-province="Free State" d="M424 350 L458 238 L592 244 L650 340 L560 390 Z"/>
+              <path class="province" id="North West" data-province="North West" d="M398 150 L496 100 L592 142 L592 244 L458 238 Z"/>
+              <path class="province" id="Gauteng" data-province="Gauteng" d="M592 142 L656 154 L682 214 L640 260 L592 244 Z"/>
+              <path class="province" id="Limpopo" data-province="Limpopo" d="M496 100 L612 54 L760 92 L806 178 L682 214 L656 154 L592 142 Z"/>
+              <path class="province" id="Mpumalanga" data-province="Mpumalanga" d="M682 214 L806 178 L838 282 L760 350 L650 340 L640 260 Z"/>
+              <path class="province" id="KwaZulu-Natal" data-province="KwaZulu-Natal" d="M650 340 L760 350 L828 456 L768 562 L668 486 L560 390 Z"/>
+
+              <text class="province-label" x="285" y="285">NORTHERN CAPE</text>
+              <text class="province-label" x="275" y="520">WESTERN CAPE</text>
+              <text class="province-label" x="525" y="505">EASTERN CAPE</text>
+              <text class="province-label" x="535" y="320">FREE STATE</text>
+              <text class="province-label" x="510" y="190">NORTH WEST</text>
+              <text class="province-label" x="636" y="204">GAUTENG</text>
+              <text class="province-label" x="668" y="132">LIMPOPO</text>
+              <text class="province-label" x="745" y="280">MPUMALANGA</text>
+              <text class="province-label" x="705" y="438">KZN</text>
+
+              <g id="svgMarkers"></g>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <aside class="hud-panel p-4 min-h-[670px]">
+        <div class="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <p class="text-cyan-300 text-xs uppercase tracking-[0.26em]">[ Province-Filtered Intelligence Feed ]</p>
+            <h2 class="text-xl font-black uppercase text-white">SITREP Feed</h2>
+          </div>
+          <div class="text-right text-[11px] uppercase">
+            <p class="text-slate-400">Active Filter</p>
+            <p id="activeFilter" class="text-green-300">GLOBAL / ALL</p>
+          </div>
+        </div>
+
+        <section id="detailPanel" class="border border-cyan-400/20 bg-black/35 p-4 mb-4 min-h-[155px]">
+          <p class="text-cyan-300 text-xs uppercase tracking-[0.22em] mb-2">[ Selected Incident Deep Dive ]</p>
+          <p class="text-slate-300 text-sm">Select an incident card to display tactical details, delay windows, cause, current response status, and field actions.</p>
+        </section>
+
+        <div class="grid grid-cols-3 gap-2 text-[11px] uppercase mb-4">
+          <div class="border border-cyan-400/25 p-3">
+            <p class="text-slate-400">Province</p>
+            <p id="provinceLabel" class="text-cyan-300 font-black">GLOBAL</p>
+          </div>
+          <div class="border border-cyan-400/25 p-3">
+            <p class="text-slate-400">Channel</p>
+            <p id="categoryLabel" class="text-cyan-300 font-black">ALL</p>
+          </div>
+          <div class="border border-cyan-400/25 p-3">
+            <p class="text-slate-400">Reports</p>
+            <p id="reportCount" class="text-white font-black">0</p>
+          </div>
+        </div>
+
+        <div id="incidentFeed" class="space-y-3 max-h-[410px] overflow-y-auto pr-1"></div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const incidents = [
+      {
+        id: "GP-TRF-N1-001",
+        province: "Gauteng",
+        category: "TRAFFIC INCIDENTS",
+        status: "WARNING",
+        title: "N1 Midrand Corridor Disruption",
+        grid: "GP-JHB-N1-14",
+        coordinates: [617, 214],
+        impact: "Delay: 45 mins",
+        cause: "Multi-vehicle collision blocking two lanes near Midrand.",
+        response: "Active Interventions",
+        raw: "Metro police, EMS, and towing units deployed. Motorists advised to divert via R101.",
+        commander: "JMPD traffic control desk"
+      },
+      {
+        id: "KZN-NAT-FLD-003",
+        province: "KwaZulu-Natal",
+        category: "NATURAL DISASTERS",
+        status: "CRITICAL",
+        title: "Durban Coastal Flood Risk",
+        grid: "KZN-DBN-FLD-11",
+        coordinates: [753, 486],
+        impact: "Immediate response window",
+        cause: "Heavy rainfall warning across the coastal belt.",
+        response: "Disaster Management Standby",
+        raw: "Low-lying roads and informal settlements at elevated flood risk. Rescue teams pre-positioned.",
+        commander: "eThekwini disaster operations"
+      },
+      {
+        id: "WC-WAT-002",
+        province: "Western Cape",
+        category: "WATER/INFRASTRUCTURE",
+        status: "WARNING",
+        title: "Cape Town Water Pressure Watch",
+        grid: "WC-CPT-WAT-07",
+        coordinates: [270, 548],
+        impact: "Local pressure reduction",
+        cause: "Planned maintenance and valve isolation.",
+        response: "Repair Window Active",
+        raw: "Affected suburbs under reduced pressure until municipal technicians complete the repair cycle.",
+        commander: "City water operations"
+      },
+      {
+        id: "FS-PWR-006",
+        province: "Free State",
+        category: "WATER/INFRASTRUCTURE",
+        status: "CRITICAL",
+        title: "Bloemfontein Power Feed Fault",
+        grid: "FS-BFN-PWR-04",
+        coordinates: [535, 342],
+        impact: "Restoration ETA: 3 hours",
+        cause: "Transformer trip affecting municipal feeders.",
+        response: "Technical Unit Dispatched",
+        raw: "Backup routing under assessment. Priority feeders protected while repair crew isolates the fault.",
+        commander: "Mangaung electrical control"
+      },
+      {
+        id: "NW-GEO-007",
+        province: "North West",
+        category: "GEOPOLITICAL",
+        status: "WARNING",
+        title: "Rustenburg Civic March Monitoring",
+        grid: "NW-RST-CIV-16",
+        coordinates: [500, 196],
+        impact: "CBD road controls active",
+        cause: "Planned civic gathering near mining administration district.",
+        response: "Public Order Monitoring",
+        raw: "Negotiation team active. Crowd movement contained near approved march route.",
+        commander: "Provincial public order command"
+      },
+      {
+        id: "NC-NAT-HEAT-005",
+        province: "Northern Cape",
+        category: "NATURAL DISASTERS",
+        status: "WARNING",
+        title: "Upington Heat Advisory",
+        grid: "NC-UPT-HEAT-09",
+        coordinates: [260, 298],
+        impact: "72-hour heat watch",
+        cause: "Extreme inland temperature forecast.",
+        response: "Public Health Advisory",
+        raw: "Water access points monitored. Outdoor work warnings circulated.",
+        commander: "District health desk"
+      },
+      {
+        id: "EC-TRF-N2-004",
+        province: "Eastern Cape",
+        category: "TRAFFIC INCIDENTS",
+        status: "WARNING",
+        title: "N2 Freight Slowdown",
+        grid: "EC-GQB-N2-22",
+        coordinates: [540, 520],
+        impact: "Delay: 30 mins",
+        cause: "Freight congestion and temporary lane restriction.",
+        response: "Traffic Points Activated",
+        raw: "Slow movement near Gqeberha interchange. Freight operators advised to stagger departures.",
+        commander: "Eastern Cape traffic control"
+      },
+      {
+        id: "MP-INF-008",
+        province: "Mpumalanga",
+        category: "WATER/INFRASTRUCTURE",
+        status: "STABLE",
+        title: "Mbombela Power Instability Watch",
+        grid: "MP-MBQ-PWR-05",
+        coordinates: [748, 287],
+        impact: "Intermittent supply risk",
+        cause: "Storm activity near regional feed line.",
+        response: "Grid Monitoring",
+        raw: "Priority feeders remain online. Repair teams standing by if voltage drop repeats.",
+        commander: "Regional grid technicians"
+      },
+      {
+        id: "LP-NAT-RIV-009",
+        province: "Limpopo",
+        category: "NATURAL DISASTERS",
+        status: "STABLE",
+        title: "Limpopo River Level Observation",
+        grid: "LP-MUS-RIV-03",
+        coordinates: [680, 126],
+        impact: "No immediate disruption",
+        cause: "Elevated river level below emergency threshold.",
+        response: "Six-Hour Monitoring Cycle",
+        raw: "Hydrology team continues observation. No evacuation trigger currently active.",
+        commander: "Hydrology watch desk"
+      },
+      {
+        id: "GP-FIN-010",
+        province: "Gauteng",
+        category: "FINANCIAL",
+        status: "STABLE",
+        title: "Sandton Market Volatility Watch",
+        grid: "GP-SAN-FIN-02",
+        coordinates: [628, 208],
+        impact: "No public disruption",
+        cause: "Elevated trading volume and currency movement.",
+        response: "Treasury Watch Active",
+        raw: "Market liquidity normal. No intervention required at this stage.",
+        commander: "Financial monitoring cell"
+      }
+    ];
+
+    const focusTransforms = {
+      "Northern Cape": "translate(180px, 95px) scale(1.42)",
+      "Western Cape": "translate(220px, -205px) scale(1.75)",
+      "Eastern Cape": "translate(-35px, -170px) scale(1.55)",
+      "Free State": "translate(-120px, -38px) scale(1.8)",
+      "North West": "translate(-55px, 110px) scale(1.95)",
+      "Gauteng": "translate(-300px, 95px) scale(2.65)",
+      "Limpopo": "translate(-245px, 155px) scale(1.72)",
+      "Mpumalanga": "translate(-330px, -30px) scale(1.85)",
+      "KwaZulu-Natal": "translate(-290px, -170px) scale(1.65)"
+    };
+
+    let selectedProvince = "GLOBAL";
+    let selectedCategory = "ALL";
+    let selectedIncidentId = null;
+
+    const mapGroup = document.getElementById("mapGroup");
+    const feed = document.getElementById("incidentFeed");
+    const detailPanel = document.getElementById("detailPanel");
+    const svgMarkers = document.getElementById("svgMarkers");
+
+    function statusColor(status) {
+      if (status === "CRITICAL") return "var(--red)";
+      if (status === "WARNING") return "var(--orange)";
+      return "var(--green)";
+    }
+
+    function statusText(status) {
+      if (status === "CRITICAL") return "text-red-300";
+      if (status === "WARNING") return "text-orange-300";
+      return "text-green-300";
+    }
+
+    function filteredIncidents() {
+      return incidents.filter(item => {
+        const provinceMatch = selectedProvince === "GLOBAL" || item.province === selectedProvince;
+        const categoryMatch = selectedCategory === "ALL" || item.category === selectedCategory;
+        return provinceMatch && categoryMatch;
+      });
+    }
+
+    function renderMarkers(items) {
+      svgMarkers.innerHTML = items.map(item => `
+        <g class="${item.status === "CRITICAL" ? "critical-pulse" : ""}">
+          <circle cx="${item.coordinates[0]}" cy="${item.coordinates[1]}" r="7" fill="${statusColor(item.status)}" stroke="#fff" stroke-width="1.2" />
+          <circle cx="${item.coordinates[0]}" cy="${item.coordinates[1]}" r="15" fill="none" stroke="${statusColor(item.status)}" stroke-width="1" opacity=".45" />
+        </g>
+      `).join("");
+    }
+
+    function renderFeed() {
+      const items = filteredIncidents();
+      document.getElementById("reportCount").textContent = items.length;
+      document.getElementById("provinceLabel").textContent = selectedProvince;
+      document.getElementById("categoryLabel").textContent = selectedCategory === "ALL" ? "ALL" : selectedCategory;
+      document.getElementById("selectedReadout").textContent = selectedProvince;
+      document.getElementById("activeFilter").textContent = `${selectedProvince} / ${selectedCategory === "ALL" ? "ALL" : selectedCategory}`;
+
+      document.getElementById("stableCount").textContent = items.filter(i => i.status === "STABLE").length;
+      document.getElementById("warningCount").textContent = items.filter(i => i.status === "WARNING").length;
+      document.getElementById("criticalCount").textContent = items.filter(i => i.status === "CRITICAL").length;
+
+      renderMarkers(items);
+
+      if (!items.length) {
+        feed.innerHTML = `<div class="incident-card p-4 text-sm text-slate-300">[ NO REPORTS MATCH CURRENT FILTERS ]</div>`;
+        return;
+      }
+
+      feed.innerHTML = items.map(item => `
+        <button class="incident-card block w-full text-left p-4 hover:bg-cyan-400/10 transition" data-id="${item.id}" data-status="${item.status}">
+          <div class="flex items-center justify-between gap-3 mb-2">
+            <span class="${statusText(item.status)} text-xs font-black uppercase">
+              <span class="status-dot mr-2" style="color:${statusColor(item.status)}; background:${statusColor(item.status)}"></span>
+              ${item.status}
+            </span>
+            <span class="text-[10px] text-slate-400 uppercase">${item.grid}</span>
+          </div>
+          <h3 class="text-white font-black uppercase">${item.title}</h3>
+          <p class="text-cyan-300 text-xs uppercase mt-1">${item.province} // ${item.category}</p>
+          <p class="text-slate-300 text-sm mt-2">${item.impact}</p>
+        </button>
+      `).join("");
+
+      feed.querySelectorAll("[data-id]").forEach(button => {
+        button.addEventListener("click", () => showIncident(button.dataset.id));
+      });
+    }
+
+    function showIncident(id) {
+      selectedIncidentId = id;
+      const item = incidents.find(entry => entry.id === id);
+      if (!item) return;
+
+      detailPanel.innerHTML = `
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <p class="text-cyan-300 text-xs uppercase tracking-[0.22em]">[ Selected Incident Deep Dive ]</p>
+          <span class="${statusText(item.status)} text-xs font-black">${item.status}</span>
+        </div>
+        <h3 class="text-white text-lg font-black uppercase">${item.title}</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 text-xs uppercase">
+          <div class="border border-white/10 p-2"><span class="text-slate-400">Impact:</span> <span class="text-orange-300">${item.impact}</span></div>
+          <div class="border border-white/10 p-2"><span class="text-slate-400">Status:</span> <span class="text-green-300">${item.response}</span></div>
+          <div class="border border-white/10 p-2 md:col-span-2"><span class="text-slate-400">Cause:</span> ${item.cause}</div>
+          <div class="border border-white/10 p-2 md:col-span-2"><span class="text-slate-400">Action:</span> ${item.raw}</div>
+          <div class="border border-white/10 p-2 md:col-span-2"><span class="text-slate-400">Command:</span> ${item.commander}</div>
+        </div>
+      `;
+    }
+
+    function selectProvince(name) {
+      selectedProvince = name;
+      document.getElementById("mapTitle").textContent = `Focused View: ${name}`;
+      mapGroup.style.transform = focusTransforms[name] || "none";
+
+      document.querySelectorAll(".province").forEach(path => {
+        path.classList.toggle("selected", path.dataset.province === name);
+        path.classList.toggle("dimmed", path.dataset.province !== name);
+      });
+
+      renderFeed();
+    }
+
+    function resetMap() {
+      selectedProvince = "GLOBAL";
+      selectedIncidentId = null;
+      mapGroup.style.transform = "none";
+      document.getElementById("mapTitle").textContent = "Global View: Republic of South Africa";
+      document.querySelectorAll(".province").forEach(path => {
+        path.classList.remove("selected", "dimmed");
+      });
+      detailPanel.innerHTML = `
+        <p class="text-cyan-300 text-xs uppercase tracking-[0.22em] mb-2">[ Selected Incident Deep Dive ]</p>
+        <p class="text-slate-300 text-sm">Select an incident card to display tactical details, delay windows, cause, current response status, and field actions.</p>
+      `;
+      renderFeed();
+    }
+
+    document.querySelectorAll(".province").forEach(path => {
+      path.addEventListener("click", () => selectProvince(path.dataset.province));
+    });
+
+    document.querySelectorAll(".tactical-btn[data-category]").forEach(button => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll(".tactical-btn[data-category]").forEach(btn => btn.classList.remove("active"));
+        button.classList.add("active");
+        selectedCategory = button.dataset.category;
+        renderFeed();
+      });
+    });
+
+    document.getElementById("resetMap").addEventListener("click", resetMap);
+
+    function updateClock() {
+      document.getElementById("clock").textContent = new Intl.DateTimeFormat("en-ZA", {
+        timeZone: "Africa/Johannesburg",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      }).format(new Date());
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+    renderFeed();
+  </script>
+</body>
+</html>
